@@ -2,10 +2,7 @@ import Resource from 'cloudform-types/types/resource';
 import { resolve, parse, join, relative } from 'path';
 import { loadCloudFormationTemplate, Globals } from '@nx-aws/sam';
 import { ExtendedBuildBuilderOptions } from './build';
-import { isFile } from '@angular-devkit/core/node/fs';
-import { readFileSync, writeFileSync } from 'fs';
 import { BuilderContext } from '@angular-devkit/architect';
-import { sync as mkdirp } from 'mkdirp';
 import { Entry } from 'webpack';
 
 /**
@@ -31,7 +28,7 @@ export function getEntriesFromCloudFormation(
 function getEntry(
     resource: Resource,
     options: ExtendedBuildBuilderOptions,
-    context: BuilderContext,
+    _context: BuilderContext,
     globalProperties?: Globals
 ): Entry | undefined {
     const properties = resource.Properties;
@@ -50,11 +47,12 @@ function getEntry(
             srcMapInstall,
             globalProperties?.Function
         );
-    } else if (resource.Type === 'AWS::Serverless::LayerVersion') {
-        return getEntryForLayer(properties, options, context, srcMapInstall);
-    } else {
-        return;
     }
+    return;
+    // } else if (resource.Type === 'AWS::Serverless::LayerVersion') {
+    //     // return getEntryForLayer(properties, options, context, srcMapInstall);
+    // } else {
+    // }
 }
 function getEntryForFunction(
     properties: { [key: string]: any },
@@ -76,80 +74,80 @@ function getEntryForFunction(
     return { [entryName]: [srcMapInstall, src] };
 }
 
-function getEntryForLayer(
-    properties: { [key: string]: any },
-    options: ExtendedBuildBuilderOptions,
-    context: BuilderContext,
-    srcMapInstall: string
-) {
-    const { dir } = parse(options.template);
-
-    // first let's find out if we've got a package.json - without a package.json we cannot have a layer
-    const contentUri: string = properties.ContentUri;
-    const path = resolve(dir, contentUri);
-    const packagePath = resolve(path, 'package.json');
-    if (!isFile(packagePath)) {
-        context.logger.info(
-            `Did not find a package for layer at ${contentUri}; ignoring`
-        );
-        return;
-    }
-
-    // then let's find the "main" entry point defined by package.json - we need that to run the build
-    // (and indeed, it's necessary for the layer)
-    const packageJson = JSON.parse(
-        readFileSync(packagePath, { encoding: 'utf-8' })
-    );
-    const main: string = packageJson.main;
-    if (!main) {
-        context.logger.warn(
-            `Package for layer at ${contentUri} did not contain a 'main' entry point, required for building the layer`
-        );
-        return;
-    }
-
-    const { outputPath, mainName } = updatePackageJson(
-        contentUri,
-        main,
-        packageJson,
-        options
-    );
-
-    // override the original output path with the new calculated output path, which has the structure
-    // required for lambda layers.
-    options.outputPath = outputPath;
-
-    // return the entry
-    const entryName = mainName;
-    const mainPath = resolve(path, main);
-    return { [entryName]: [srcMapInstall, mainPath] };
-}
+// function getEntryForLayer(
+//     properties: { [key: string]: any },
+//     options: ExtendedBuildBuilderOptions,
+//     context: BuilderContext,
+//     srcMapInstall: string
+// ) {
+//     const { dir } = parse(options.template);
+//
+//     // first let's find out if we've got a package.json - without a package.json we cannot have a layer
+//     const contentUri: string = properties.ContentUri;
+//     const path = resolve(dir, contentUri);
+//     const packagePath = resolve(path, 'package.json');
+//     if (!isFile(packagePath)) {
+//         context.logger.info(
+//             `Did not find a package for layer at ${contentUri}; ignoring`
+//         );
+//         return;
+//     }
+//
+//     // then let's find the "main" entry point defined by package.json - we need that to run the build
+//     // (and indeed, it's necessary for the layer)
+//     const packageJson = JSON.parse(
+//         readFileSync(packagePath, { encoding: 'utf-8' })
+//     );
+//     const main: string = packageJson.main;
+//     if (!main) {
+//         context.logger.warn(
+//             `Package for layer at ${contentUri} did not contain a 'main' entry point, required for building the layer`
+//         );
+//         return;
+//     }
+//
+//     const { outputPath, mainName } = updatePackageJson(
+//         contentUri,
+//         main,
+//         packageJson,
+//         options
+//     );
+//
+//     // override the original output path with the new calculated output path, which has the structure
+//     // required for lambda layers.
+//     options.outputPath = outputPath;
+//
+//     // return the entry
+//     const entryName = mainName;
+//     const mainPath = resolve(path, main);
+//     return { [entryName]: [srcMapInstall, mainPath] };
+// }
 
 /**
  * We need to update the package.json to point to the output js file, rather than the input ts file
  */
-function updatePackageJson(
-    contentUri: string,
-    main: string,
-    packageJson: any,
-    options: ExtendedBuildBuilderOptions
-) {
-    const mainName = parse(main).name;
-    packageJson.main = mainName + '.js';
-    const packageName = packageJson.name;
-    // we calculate a new output path that has the structure required for lambda layers
-    const relativeOutputPath = join(
-        contentUri,
-        'nodejs/node_modules',
-        packageName
-    );
-    const outputPath = resolve(options.outputPath, relativeOutputPath);
-    mkdirp(outputPath);
-    // write out the amended package.json in the output director
-    writeFileSync(
-        resolve(outputPath, 'package.json'),
-        JSON.stringify(packageJson, null, 4),
-        { encoding: 'utf-8' }
-    );
-    return { outputPath, mainName };
-}
+// function updatePackageJson(
+//     contentUri: string,
+//     main: string,
+//     packageJson: any,
+//     options: ExtendedBuildBuilderOptions
+// ) {
+//     const mainName = parse(main).name;
+//     packageJson.main = mainName + '.js';
+//     const packageName = packageJson.name;
+//     // we calculate a new output path that has the structure required for lambda layers
+//     const relativeOutputPath = join(
+//         contentUri,
+//         'nodejs/node_modules',
+//         packageName
+//     );
+//     const outputPath = resolve(options.outputPath, relativeOutputPath);
+//     mkdirp(outputPath);
+//     // write out the amended package.json in the output director
+//     writeFileSync(
+//         resolve(outputPath, 'package.json'),
+//         JSON.stringify(packageJson, null, 4),
+//         { encoding: 'utf-8' }
+//     );
+//     return { outputPath, mainName };
+// }
